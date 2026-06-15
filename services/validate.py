@@ -1,64 +1,47 @@
 """Deterministic checks: does the plan respect the catalogue and track rules?
 
-Returns one named Check per rule so the UI can show exactly what was verified.
+Any failure makes the plan invalid. Returns a flat list of error strings.
 """
-from schemas import Track, WeeklyPlan, Check
+from schemas import Track, WeeklyPlan
 from data.product_store import ProductStore
 
 
 def validate_plan(plan: WeeklyPlan, store: ProductStore,
-                  exclude: frozenset[str] = frozenset()) -> list[Check]:
-    checks: dict[str, list[str]] = {
-        "All products exist in the catalogue": [],
-        "All products are available": [],
-        "Product names match the catalogue": [],
-        "Track labels are consistent": [],
-        "Meat tracks contain a meat product": [],
-        "Vegetarian tracks are meat-free": [],
-        "Quantities are positive": [],
-    }
-    allergen_key = f"No excluded allergens ({', '.join(sorted(exclude))})" if exclude else None
-    if allergen_key:
-        checks[allergen_key] = []
+                  exclude: frozenset[str] = frozenset()) -> list[str]:
+    errors = []
 
     for day in plan.days:
         for dish, slot in ((day.meat_dish, Track.meat),
                            (day.vegetarian_dish, Track.vegetarian)):
             where = f"{day.day.value} / {slot.value} ('{dish.name}')"
             if dish.track != slot:
-                checks["Track labels are consistent"].append(
-                    f"{where}: dish.track={dish.track.value} but slot is {slot.value}")
+                errors.append(f"{where}: track mismatch (dish says {dish.track.value})")
 
-            classes_seen: list[str] = []
+            has_meat = False
             for ing in dish.ingredients:
                 if ing.quantity_g <= 0:
-                    checks["Quantities are positive"].append(
-                        f"{where}: '{ing.product_name}' quantity is {ing.quantity_g} g")
+                    errors.append(f"{where}: '{ing.product_name}' quantity is {ing.quantity_g}g")
+                
                 p = store.get(ing.product_id)
                 if p is None:
-                    checks["All products exist in the catalogue"].append(
-                        f"{where}: product_id {ing.product_id} does not exist (hallucinated)")
+                    errors.append(f"{where}: product_id {ing.product_id} does not exist")
                     continue
+                
                 if not p.is_available:
-                    checks["All products are available"].append(
-                        f"{where}: '{p.product_name}' (id {ing.product_id}) is not available")
-                if p.product_name != ing.product_name:
-                    checks["Product names match the catalogue"].append(
-                        f"{where}: id {ing.product_id} "
-                        f"(plan='{ing.product_name}', catalogue='{p.product_name}')")
-                classes_seen.append(p.dietary_class)
-                if slot is Track.vegetarian and p.dietary_class == "meat":
-                    checks["Vegetarian tracks are meat-free"].append(
-                        f"{where}: contains meat product '{p.product_name}'")
-                if allergen_key:
-                    for a in exclude:
-                        if getattr(p, f"allergen_{a}"):
-                            checks[allergen_key].append(
-                                f"{where}: '{p.product_name}' contains {a}")
+                    errors.append(f"{where}: '{p.product_name}' is not available")
+                
+                # Sync name from store
+                ing.product_name = p.product_name
+                if p.dietary_class == "meat":
+                    has_meat = True
+                    if slot is Track.vegetarian:
+                        errors.append(f"{where}: contains meat product '{p.product_name}'")
+                
+                for a in exclude:
+                    if getattr(p, f"allergen_{a}"):
+                        errors.append(f"{where}: '{p.product_name}' contains {a}")
 
-            if slot is Track.meat and "meat" not in classes_seen:
-                checks["Meat tracks contain a meat product"].append(
-                    f"{where}: no meat-class product")
+            if slot is Track.meat and not has_meat:
+                errors.append(f"{where}: no meat-class product in meat track")
 
-    return [Check(name=name, passed=not fails, details=fails)
-            for name, fails in checks.items()]
+    return errors

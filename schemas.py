@@ -62,17 +62,6 @@ class Product(BaseModel):
 
 
 
-# A single named validation check, for transparent reporting in the UI
-class Check(BaseModel):
-    name: str
-    passed: bool
-    details: list[str] = []
-
-
-
-
-
-
 
 # Summary models
 
@@ -85,20 +74,3 @@ class WeeklySummary(BaseModel):
     meat_track: TrackSummary
     vegetarian_track: TrackSummary
     grand_total_cost_eur: float = 0.0
-
-
-# API response models
-
-class PromptView(BaseModel):
-    """The exact text the model is grounded on, surfaced to the UI for transparency."""
-    system: str
-    catalogue_count: int
-    catalogue_preview: str
-
-
-class PlanResponse(BaseModel):
-    valid: bool
-    checks: list[Check]
-    plan: WeeklyPlan
-    summary: WeeklySummary | None = None
-    prompt: PromptView

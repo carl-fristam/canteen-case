@@ -1,39 +1,28 @@
-# Canteen Menu Planner
+# HEYRA: Canteen Menu Planner
 
-Generates a week of canteen mains (Mon–Fri, meat + vegetarian) from a product catalogue, grounded in real products and validated. Simple FastAPI web UI.
+Automated weekly menu planning using Gemini thinking models. This application helps canteen chefs plan a 5-day menu with two tracks (Meat and Vegetarian) while respecting dietary restrictions and cost constraints.
 
->Made just for Google and Anthropic models
+## Features
+
+- **Gemini Thinking Models**: Uses advanced reasoning to select compatible ingredients and design balanced meals.
+- **Live Reasoning Stream**: Watch the AI "think" through the planning process in real-time.
+- **Dietary Filters**: Exclude allergens (Gluten, Nuts, Dairy) dynamically.
+- **Graceful Failure**: Clear reporting when constraints are unsatisfiable or the AI produces invalid plans.
+- **Cost & Nutrition Summary**: Automatic calculation of weekly costs and allergen tracking.
 
 ## Setup
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-Put your key in `.env` and pick a provider:
-
-```
-LLM_PROVIDER=anthropic        # or gemini
-ANTHROPIC_API_KEY=sk-ant-...
-GEMINI_API_KEY=...
-```
+1.  **Python 3.12+**
+2.  Install dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+3.  Set your `GEMINI_API_KEY` in a `.env` file (copied from `.env.example` if available).
 
 ## Run
 
 ```bash
-uvicorn main:app --reload                  # real model
-USE_FAKE_LLM=1 uvicorn main:app --reload   # no API cost
+uvicorn main:app --reload
 ```
 
-Open http://127.0.0.1:8000.
-
-## Tests
-
-```bash
-pip install pytest httpx
-pytest
-```
-
-This will run unit tests for validation and summarization logic, as well as integration tests for the API endpoints (fixed to use the fake LLM to avoid costs).
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser.

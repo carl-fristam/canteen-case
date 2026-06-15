@@ -6,167 +6,313 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Canteen Menu Planner</title>
   <style>
+    :root {
+      --bg: #f7f7f8;
+      --card: #ffffff;
+      --border: #ececf1;
+      --text: #1f2023;
+      --muted: #6b6b76;
+      --accent: #10a37f;
+      --accent-dark: #0e8e6d;
+      --accent-light: #e6f4f0;
+      --ok: #137333;
+      --bad: #c5221f;
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: system-ui, sans-serif;
-      max-width: 820px;
-      margin: 2rem auto;
-      padding: 0 1rem;
-      color: #222;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+      line-height: 1.5;
     }
 
-    button {
-      padding: .6rem 1.1rem;
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin: 0 0 1.5rem;
+    }
+
+    h2 {
       font-size: 1rem;
-      cursor: pointer;
-      border-radius: 6px;
-      border: 1px solid #888;
+      font-weight: 700;
+      margin: 0 0 .5rem;
     }
 
-    button:disabled {
+    h3 {
+      font-size: .88rem;
+      font-weight: 600;
+      margin: 0 0 .3rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.2rem;
+      margin: 0 0 .8rem;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+    }
+
+    /* ── Layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+
+    /* ── Left pane ── */
+    .left-pane {
+      min-width: 0;
+    }
+
+    .allergen-label {
+      font-size: .8rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin: 0 0 .6rem;
+    }
+
+    .pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      margin-bottom: .9rem;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: .4rem .85rem;
+      border: 1px solid #d9d9e3;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: .88rem;
+      user-select: none;
+      transition: background .12s, color .12s, border-color .12s;
+    }
+
+    .pill input {
+      display: none;
+    }
+
+    .pill:has(input:checked) {
+      background: var(--text);
+      color: #fff;
+      border-color: var(--text);
+    }
+
+    .btn {
+      border: none;
+      border-radius: 12px;
+      padding: .7rem 1.4rem;
+      font-size: .95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .12s, transform .05s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      width: 100%;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-dark);
+    }
+
+    .btn-primary:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    .btn:disabled {
       opacity: .5;
       cursor: default;
     }
 
-    fieldset {
-      margin: 0 0 1rem;
-      border: 1px solid #ddd;
-      border-radius: 8px;
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid #d9d9e3;
+      color: var(--text);
+      padding: .5rem 1rem;
+      border-radius: 10px;
+      font-size: .88rem;
+      cursor: pointer;
+      display: block;
+      margin-top: .8rem;
     }
 
-    fieldset label {
-      margin-right: 1rem;
+    /* ── Live spinner (expandable card) ── */
+    details.live-card>summary {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      cursor: pointer;
+      list-style: none;
+      color: var(--muted);
+      font-size: .9rem;
     }
 
-    .day {
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 1rem;
-      margin: 1rem 0;
+    details.live-card>summary::-webkit-details-marker {
+      display: none;
     }
 
-    .day h2 {
-      margin: 0 0 .5rem;
+    details.live-card>summary::after {
+      content: "▸";
+      margin-left: auto;
+      font-size: .8rem;
+      transition: transform .15s;
+      flex: none;
     }
 
-    .dish {
-      margin: .5rem 0;
+    details.live-card[open]>summary::after {
+      transform: rotate(90deg);
     }
 
-    .track {
-      font-weight: 600;
-      text-transform: capitalize;
+    details.live-card pre {
+      margin-top: .7rem;
     }
 
-    .ok {
-      color: #137333;
-    }
-
-    .bad {
-      color: #c5221f;
-    }
-
-    ul {
-      margin: .25rem 0 .75rem 1.25rem;
-    }
-
-    li.err {
-      color: #c5221f;
-    }
-
-    .check {
-      margin: .15rem 0;
-    }
-
-    #status {
-      margin: 1rem 0;
-      font-weight: 600;
-    }
-
-    .took {
-      font-weight: 400;
-      color: #777;
+    .live-step {
+      font-style: italic;
     }
 
     .spinner {
-      display: inline-block;
-      width: .9em;
-      height: .9em;
-      margin-right: .5em;
-      border: 2px solid #ccc;
-      border-top-color: #222;
+      flex: none;
+      width: 1em;
+      height: 1em;
+      border: 2px solid #d9d9e3;
+      border-top-color: var(--text);
       border-radius: 50%;
-      vertical-align: -.1em;
       animation: spin .7s linear infinite;
     }
 
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
 
-    .thinking-box {
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      margin: 1rem 0;
-      background: #fafafa;
-    }
-
-    .thinking-label {
-      padding: .4rem .8rem;
+    /* ── Status ── */
+    .status {
       font-weight: 600;
-      font-size: .85rem;
-      color: #555;
-      border-bottom: 1px solid #eee;
+      font-size: .95rem;
+      margin: 0 0 .8rem;
     }
 
-    .thinking-box pre {
-      margin: 0;
-      padding: .6rem .8rem;
-      white-space: pre-wrap;
-      font-size: .8rem;
-      line-height: 1.4;
-      max-height: 260px;
-      overflow-y: auto;
+    .ok {
+      color: var(--ok);
     }
 
-    #checks {
-      margin: .5rem 0 1rem;
+    .bad {
+      color: var(--bad);
     }
 
-    .summary-box {
-      border: 2px solid #222;
-      padding: 1rem;
-      border-radius: 8px;
-      margin: 1rem 0;
-      background: #f9f9f9;
+    .took {
+      font-weight: 400;
+      color: var(--muted);
     }
 
-    .prompt-box {
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: .5rem 1rem;
-      margin: 1rem 0;
-      background: #fafafa;
-    }
-
-    .prompt-box summary {
+    /* ── Collapsibles ── */
+    details.collapse>summary {
       cursor: pointer;
       font-weight: 600;
+      list-style: none;
+      color: var(--muted);
+      font-size: .9rem;
     }
 
-    .prompt-box pre {
+    details.collapse>summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details.collapse>summary::before {
+      content: "▸";
+      display: inline-block;
+      margin-right: .4rem;
+      transition: transform .15s;
+    }
+
+    details.collapse[open]>summary::before {
+      transform: rotate(90deg);
+    }
+
+    pre {
       white-space: pre-wrap;
-      background: #fff;
-      border: 1px solid #eee;
-      border-radius: 6px;
-      padding: .5rem;
-      font-size: .8rem;
-      max-height: 320px;
+      background: #fafafa;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: .6rem;
+      margin: .6rem 0 0;
+      font-size: .78rem;
+      max-height: 260px;
       overflow: auto;
     }
 
-    .summary-box h2 {
-      margin-top: 0;
-      border-bottom: 1px solid #222;
+    /* ── Validation ── */
+    .check {
+      margin: .25rem 0;
+      font-size: .9rem;
+    }
+
+    li.err {
+      color: var(--bad);
+    }
+
+    ul {
+      margin: .2rem 0 .5rem 1.2rem;
+      padding: 0;
+    }
+
+    /* ── Right pane ── */
+    .right-pane {
+      min-width: 0;
+    }
+
+    /* Summary card with green header */
+    .summary-card {
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--accent-dark);
+      margin-bottom: .8rem;
+      box-shadow: 0 1px 3px rgba(16, 163, 127, .15);
+    }
+
+    .summary-header {
+      background: var(--accent);
+      color: #fff;
+      padding: .75rem 1.2rem;
+    }
+
+    .summary-header h2 {
+      color: #fff;
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    .summary-header p {
+      color: rgba(255, 255, 255, .8);
+      font-size: .8rem;
+      margin: .15rem 0 0;
+    }
+
+    .summary-body {
+      background: var(--card);
+      padding: .9rem 1.2rem;
     }
 
     .summary-grid {
@@ -175,182 +321,312 @@
       gap: 1rem;
     }
 
+    .summary-stat {
+      font-size: .9rem;
+      margin: .15rem 0;
+    }
+
+    .summary-stat strong {
+      color: var(--text);
+    }
+
+    .summary-total {
+      margin-top: .75rem;
+      padding-top: .6rem;
+      border-top: 1px solid var(--border);
+      font-size: .95rem;
+    }
+
+    /* ── Week canvas ── */
+    .week-canvas {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+    }
+
+    .week-row {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .week-row:last-child {
+      border-bottom: none;
+    }
+
+    .week-day-label {
+      padding: .8rem 1rem;
+      font-weight: 700;
+      font-size: .88rem;
+      color: var(--text);
+      border-right: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      background: #f9f9fb;
+    }
+
+    .week-dishes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .dish {
+      padding: .7rem 1rem;
+      font-size: .86rem;
+    }
+
+    .dish+.dish {
+      border-left: 1px solid var(--border);
+    }
+
+    .track-label {
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+      margin-bottom: .2rem;
+    }
+
+    .dish-name {
+      font-weight: 600;
+      margin-bottom: .3rem;
+    }
+
+    .dish ul {
+      margin: 0;
+      padding-left: 1.1rem;
+      color: var(--muted);
+    }
+
+    .dish li {
+      margin: .1rem 0;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
     @media print {
       body {
         margin: 0;
         padding: 1cm;
         max-width: none;
+        background: #fff;
       }
 
-      #go,
-      fieldset,
-      #status,
-      #checks,
-      h1,
       .no-print {
         display: none !important;
       }
 
-      .day,
-      .summary-box {
-        page-break-inside: avoid;
-        border: 1px solid #000;
+      .layout {
+        display: block;
       }
 
-      .day h2 {
-        font-size: 1.2rem;
+      .day-row {
+        box-shadow: none;
+        page-break-inside: avoid;
+      }
+    }
+
+    @media (max-width: 700px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .day-dishes {
+        grid-template-columns: 1fr;
+      }
+
+      .dish+.dish {
+        border-left: none;
+        border-top: 1px solid var(--border);
       }
     }
   </style>
 </head>
 
 <body>
-  <h1 class="no-print">Canteen Weekly Menu Planner</h1>
+  <h1>Canteen Weekly Menu Planner</h1>
 
-  <fieldset class="no-print">
-    <legend>Exclude allergens</legend>
-    <label><input type="checkbox" class="allergen" value="gluten"> Gluten</label>
-    <label><input type="checkbox" class="allergen" value="nuts"> Nuts</label>
-    <label><input type="checkbox" class="allergen" value="dairy"> Dairy</label>
-  </fieldset>
+  <div class="layout">
 
-  <button id="go">Generate week</button>
-  <button id="print" class="no-print" style="display:none" onclick="window.print()">Print for Chef</button>
-  <div id="status"></div>
-  <div id="thinking" class="no-print"></div>
-  <div id="checks"></div>
-  <div id="prompt" class="no-print"></div>
-  <div id="summary"></div>
-  <div id="week"></div>
+    <!-- ── Left pane ── -->
+    <div class="left-pane">
+
+      <div class="card no-print">
+        <p class="allergen-label">Select allergies / dietary restrictions</p>
+        <div class="pills">
+          <label class="pill"><input type="checkbox" class="allergen" value="gluten"> Gluten</label>
+          <label class="pill"><input type="checkbox" class="allergen" value="nuts"> Nuts</label>
+          <label class="pill"><input type="checkbox" class="allergen" value="dairy"> Dairy</label>
+        </div>
+        <button id="go" class="btn btn-primary">Generate week</button>
+      </div>
+
+      <details id="live" class="card live-card no-print" hidden>
+        <summary>
+          <span class="spinner"></span>
+          <span class="live-step" id="liveStep">Thinking…</span>
+        </summary>
+        <pre id="reasoningFull"></pre>
+      </details>
+
+      <div id="status" class="status"></div>
+
+      <div id="meta" hidden>
+        <button class="btn-ghost no-print" onclick="window.print()">Print for chef</button>
+      </div>
+
+    </div>
+
+    <!-- ── Right pane ── -->
+    <div class="right-pane">
+
+      <div id="summary"></div>
+      <div class="week-canvas" id="week" hidden></div>
+
+    </div>
+
+  </div>
 
   <script>
     const go = document.getElementById("go");
-    const printBtn = document.getElementById("print");
+    const live = document.getElementById("live");
+    const liveStep = document.getElementById("liveStep");
     const statusEl = document.getElementById("status");
-    const checksEl = document.getElementById("checks");
-    const thinkingEl = document.getElementById("thinking");
-    const promptEl = document.getElementById("prompt");
+    const meta = document.getElementById("meta");
+    const reasoningFull = document.getElementById("reasoningFull");
     const summaryEl = document.getElementById("summary");
     const weekEl = document.getElementById("week");
 
     go.addEventListener("click", () => {
       go.disabled = true;
-      printBtn.style.display = "none";
-      statusEl.innerHTML = `<span class="spinner"></span>Thinking…`;
-      checksEl.innerHTML = "";
-      thinkingEl.innerHTML = "";
-      promptEl.innerHTML = "";
-      summaryEl.innerHTML = "";
+      statusEl.textContent = "";
+      meta.hidden = true;
       weekEl.innerHTML = "";
-
-      const params = new URLSearchParams();
-      document.querySelectorAll(".allergen:checked").forEach(c => params.append("exclude", c.value));
+      weekEl.hidden = true;
+      summaryEl.innerHTML = "";
+      live.open = false;
+      live.hidden = true;
+      live.querySelector(".spinner").hidden = false;
+      reasoningFull.textContent = "";
+      liveStep.textContent = "Thinking…";
+      live.hidden = false;
 
       const startedAt = Date.now();
       const elapsed = () => ((Date.now() - startedAt) / 1000).toFixed(1);
 
-      const es = new EventSource("/plan/stream?" + params.toString());
-      let thinkingLog = "";
+      const params = new URLSearchParams();
+      document.querySelectorAll(".allergen:checked").forEach(c => params.append("exclude", c.value));
+
+      const es = new EventSource("/plan?" + params.toString());
+      let reasoning = "";
 
       es.addEventListener("thinking", e => {
-        thinkingLog += JSON.parse(e.data).text;
-        thinkingEl.innerHTML = `<div class="thinking-box"><div class="thinking-label">Model reasoning</div><pre>${escapeHtml(thinkingLog)}</pre></div>`;
-        const pre = thinkingEl.querySelector("pre");
-        if (pre) pre.scrollTop = pre.scrollHeight;
+        reasoning += JSON.parse(e.data).text;
+        liveStep.textContent = currentStep(reasoning);
+        reasoningFull.textContent = reasoning;
+        live.hidden = false;
       });
 
       es.addEventListener("done", e => {
         const data = JSON.parse(e.data);
-        statusEl.innerHTML = data.valid
-          ? `<span class="ok">Valid plan &check;</span> <span class="took">in ${elapsed()}s</span>`
-          : `<span class="bad">Invalid plan</span> <span class="took">in ${elapsed()}s</span>`;
-        checksEl.innerHTML = data.checks.map(renderCheck).join("");
-        promptEl.innerHTML = renderPrompt(data.prompt);
+        live.querySelector(".spinner").hidden = true;
+        liveStep.textContent = "Thinking complete";
+
+        statusEl.innerHTML = (data.valid
+          ? `<span class="ok">Valid plan &check;</span>`
+          : `<span class="bad">Invalid plan</span>`)
+          + ` <span class="took">in ${elapsed()}s</span>`;
+
+        weekEl.innerHTML = data.days.map(renderDay).join("");
+        weekEl.hidden = false;
         summaryEl.innerHTML = renderSummary(data.summary);
-        weekEl.innerHTML = data.plan.days.map(renderDay).join("");
+        meta.hidden = false;
+
         es.close();
         go.disabled = false;
-        if (data.valid) printBtn.style.display = "inline-block";
       });
 
       es.addEventListener("failed", e => {
-        statusEl.innerHTML = `<span class="bad">Failed: ${JSON.parse(e.data).detail}</span> <span class="took">after ${elapsed()}s</span>`;
+        live.hidden = true;
+        statusEl.innerHTML =
+          `<span class="bad">Failed: ${JSON.parse(e.data).detail}</span> <span class="took">after ${elapsed()}s</span>`;
         es.close();
         go.disabled = false;
       });
 
       es.onerror = () => {
-        if (es.readyState === EventSource.CLOSED) return;   // already handled
+        if (es.readyState === EventSource.CLOSED) return;
+        live.hidden = true;
         statusEl.innerHTML = `<span class="bad">Connection lost</span>`;
         es.close();
         go.disabled = false;
       };
     });
 
-    function renderCheck(c) {
-      const icon = c.passed ? `<span class="ok">&check;</span>` : `<span class="bad">&cross;</span>`;
-      const fails = c.details.length
-        ? "<ul>" + c.details.map(d => `<li class="err">${d}</li>`).join("") + "</ul>"
-        : "";
-      return `<div class="check">${icon} ${c.name}${fails}</div>`;
+    function currentStep(log) {
+      const headers = [...log.matchAll(/\*\*(.+?)\*\*/g)];
+      if (headers.length) return headers[headers.length - 1][1];
+      const line = log.trim().split("\n").find(l => l.trim());
+      return line ? line.replace(/[*#]/g, "").trim() : "Thinking…";
     }
 
     function escapeHtml(s) {
       return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
-    function renderPrompt(p) {
-      if (!p) return "";
-      const shown = Math.min(20, p.catalogue_count);
-      const more = p.catalogue_count - shown;
-      const moreNote = more > 0 ? `<p>…and ${more} more.</p>` : "";
-      return `
-        <details class="prompt-box">
-          <summary>What the AI saw (system prompt + catalogue)</summary>
-          <h3>System prompt</h3>
-          <pre>${escapeHtml(p.system)}</pre>
-          <h3>Catalogue (${p.catalogue_count} products, showing first ${shown})</h3>
-          <pre>${escapeHtml(p.catalogue_preview)}</pre>
-          ${moreNote}
-        </details>
-      `;
-    }
-
     function renderSummary(s) {
       if (!s) return "";
       const fmt = n => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       return `
-        <div class="summary-box">
-          <h2>Weekly summary</h2>
-          <div class="summary-grid">
-            <div>
-              <h3>Meat Track</h3>
-              <p>Cost: <strong>€${fmt(s.meat_track.total_cost_eur)}</strong></p>
-              <p>Calories: <strong>${fmt(s.meat_track.total_calories_kcal)} kcal</strong></p>
-              <p>Allergens: ${s.meat_track.allergens.join(", ") || "None"}</p>
-            </div>
-            <div>
-              <h3>Vegetarian Track</h3>
-              <p>Cost: <strong>€${fmt(s.vegetarian_track.total_cost_eur)}</strong></p>
-              <p>Calories: <strong>${fmt(s.vegetarian_track.total_calories_kcal)} kcal</strong></p>
-              <p>Allergens: ${s.vegetarian_track.allergens.join(", ") || "None"}</p>
-            </div>
+        <div class="summary-card">
+          <div class="summary-header">
+            <h2>Weekly Summary</h2>
+            <p>Cost &amp; nutrition per person · per week</p>
           </div>
-          <div style="margin-top:1rem; border-top:1px solid #ccc; padding-top:0.5rem">
-            <strong>Grand Total Weekly Cost: €${fmt(s.grand_total_cost_eur)}</strong>
+          <div class="summary-body">
+            <div class="summary-grid">
+              <div>
+                <h3>Meat track</h3>
+                <p class="summary-stat">Cost: <strong>€${fmt(s.meat_track.total_cost_eur)}</strong></p>
+                <p class="summary-stat">Allergens: ${s.meat_track.allergens.join(", ") || "None"}</p>
+              </div>
+              <div>
+                <h3>Vegetarian track</h3>
+                <p class="summary-stat">Cost: <strong>€${fmt(s.vegetarian_track.total_cost_eur)}</strong></p>
+                <p class="summary-stat">Allergens: ${s.vegetarian_track.allergens.join(", ") || "None"}</p>
+              </div>
+            </div>
+            <div class="summary-total">Grand total for week (10 servings): <strong>€${fmt(s.grand_total_cost_eur)}</strong></div>
           </div>
-        </div>
-      `;
+        </div>`;
     }
 
     function renderDay(day) {
-      return `<div class="day"><h2>${day.day}</h2>${renderDish(day.meat_dish)}${renderDish(day.vegetarian_dish)}</div>`;
+      return `
+        <div class="week-row">
+          <div class="week-day-label">${day.day}</div>
+          <div class="week-dishes">
+            ${renderDish(day.meat_dish)}
+            ${renderDish(day.vegetarian_dish)}
+          </div>
+        </div>`;
     }
+
     function renderDish(dish) {
       const items = dish.ingredients
-        .map(i => `<li>${i.quantity_g.toFixed(0)} g — ${i.product_name} (#${i.product_id})</li>`)
+        .map(i => `<li>${i.quantity_g.toFixed(0)} g — ${escapeHtml(i.product_name)}</li>`)
         .join("");
-      return `<div class="dish"><span class="track">${dish.track}</span>: ${dish.name}<ul>${items}</ul></div>`;
+      return `
+        <div class="dish">
+          <div class="track-label">${dish.track}</div>
+          <div class="dish-name">${escapeHtml(dish.name)}</div>
+          <ul>${items}</ul>
+        </div>`;
     }
   </script>
 </body>
