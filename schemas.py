@@ -85,3 +85,20 @@ class WeeklySummary(BaseModel):
     meat_track: TrackSummary
     vegetarian_track: TrackSummary
     grand_total_cost_eur: float = 0.0
+
+
+# API response models
+
+class PromptView(BaseModel):
+    """The exact text the model is grounded on, surfaced to the UI for transparency."""
+    system: str
+    catalogue_count: int
+    catalogue_sample: str
+
+
+class PlanResponse(BaseModel):
+    valid: bool
+    checks: list[Check]
+    plan: WeeklyPlan
+    summary: WeeklySummary | None = None
+    prompt: PromptView
