@@ -94,6 +94,30 @@
       background: #f9f9f9;
     }
 
+    .prompt-box {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: .5rem 1rem;
+      margin: 1rem 0;
+      background: #fafafa;
+    }
+
+    .prompt-box summary {
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .prompt-box pre {
+      white-space: pre-wrap;
+      background: #fff;
+      border: 1px solid #eee;
+      border-radius: 6px;
+      padding: .5rem;
+      font-size: .8rem;
+      max-height: 320px;
+      overflow: auto;
+    }
+
     .summary-box h2 {
       margin-top: 0;
       border-bottom: 1px solid #222;
@@ -148,6 +172,7 @@
   <button id="print" class="no-print" style="display:none" onclick="window.print()">Print for Chef</button>
   <div id="status"></div>
   <div id="checks"></div>
+  <div id="prompt" class="no-print"></div>
   <div id="summary"></div>
   <div id="week"></div>
 
@@ -156,6 +181,7 @@
     const printBtn = document.getElementById("print");
     const statusEl = document.getElementById("status");
     const checksEl = document.getElementById("checks");
+    const promptEl = document.getElementById("prompt");
     const summaryEl = document.getElementById("summary");
     const weekEl = document.getElementById("week");
 
@@ -164,6 +190,7 @@
       printBtn.style.display = "none";
       statusEl.textContent = "Planning…";
       checksEl.innerHTML = "";
+      promptEl.innerHTML = "";
       summaryEl.innerHTML = "";
       weekEl.innerHTML = "";
 
@@ -183,6 +210,7 @@
           ? `<span class="ok">Valid plan &check;</span>`
           : `<span class="bad">Invalid plan</span>`;
         checksEl.innerHTML = data.checks.map(renderCheck).join("");
+        promptEl.innerHTML = renderPrompt(data.prompt);
         summaryEl.innerHTML = renderSummary(data.summary);
         weekEl.innerHTML = data.plan.days.map(renderDay).join("");
         es.close();
@@ -210,6 +238,27 @@
         ? "<ul>" + c.details.map(d => `<li class="err">${d}</li>`).join("") + "</ul>"
         : "";
       return `<div class="check">${icon} ${c.name}${fails}</div>`;
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function renderPrompt(p) {
+      if (!p) return "";
+      const shown = Math.min(20, p.catalogue_count);
+      const more = p.catalogue_count - shown;
+      const moreNote = more > 0 ? `<p>…and ${more} more.</p>` : "";
+      return `
+        <details class="prompt-box">
+          <summary>What the AI saw (system prompt + catalogue)</summary>
+          <h3>System prompt</h3>
+          <pre>${escapeHtml(p.system)}</pre>
+          <h3>Catalogue (${p.catalogue_count} products, showing first ${shown})</h3>
+          <pre>${escapeHtml(p.catalogue_sample)}</pre>
+          ${moreNote}
+        </details>
+      `;
     }
 
     function renderSummary(s) {

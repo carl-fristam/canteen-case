@@ -4,6 +4,7 @@ import json
 import logging
 import time
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
 
 import anthropic
@@ -13,17 +14,18 @@ from pydantic import BaseModel, ValidationError
 
 from config import USE_FAKE_LLM, PROVIDER
 from data.product_store import ProductStore
-from llm.prompt import format_catalogue
+from llm.prompt import SYSTEM, format_catalogue
 from llm.fake_planner import fake_plan_week
 from validate import validate_plan
 from summarize import summarize_plan
-from models import WeeklyPlan, Check, WeeklySummary
+from models import WeeklyPlan, Check, WeeklySummary, Product
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("canteen")
 
 INDEX = Path(__file__).parent / "frontend" / "index.html"
 ALLERGENS = ("gluten", "nuts", "dairy")
+SAMPLE_ROWS = 20        # catalogue rows shown in the "what the AI saw" panel
 
 
 # lifespan hook to have the ProductStore be in memory throughout up-time
@@ -38,11 +40,45 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Canteen Menu Planner", lifespan=lifespan)
 
 
+class PromptView(BaseModel):
+    """The exact text the model is grounded on, surfaced to the UI for transparency."""
+    system: str
+    catalogue_count: int
+    catalogue_sample: str
+
+
 class PlanResponse(BaseModel):
     valid: bool
     checks: list[Check]
     plan: WeeklyPlan
     summary: WeeklySummary | None = None
+    prompt: PromptView
+
+
+@dataclass
+class _Catalogue:
+    """The rendered catalogue for one allergen-filter — reused by the LLM call and the prompt panel."""
+    products: list[Product]
+    text: str
+    count: int
+    sample: str
+
+
+_CATALOGUE_CACHE: dict[frozenset[str], _Catalogue] = {}
+
+
+def _catalogue(store: ProductStore, exclude: frozenset[str]) -> _Catalogue:
+    """Build (and cache) the catalogue for an allergen-filter, so it's rendered once per filter, not per request."""
+    if exclude not in _CATALOGUE_CACHE:
+        products = store.candidates(exclude)
+        text = format_catalogue(products)
+        sample = "\n".join(text.split("\n")[:1 + SAMPLE_ROWS])   # header + N rows
+        _CATALOGUE_CACHE[exclude] = _Catalogue(products, text, len(products), sample)
+    return _CATALOGUE_CACHE[exclude]
+
+
+def _prompt_view(cat: _Catalogue) -> PromptView:
+    return PromptView(system=SYSTEM, catalogue_count=cat.count, catalogue_sample=cat.sample)
 
 
 def _norm_exclude(exclude: list[str]) -> frozenset[str]:
@@ -60,14 +96,15 @@ def _planner():
 
 def _make_plan(store: ProductStore, exclude: frozenset[str]) -> WeeklyPlan:
     """Build a plan, failing informatively when the filters leave a track empty."""
-    candidates = store.candidates(exclude)
+    cat = _catalogue(store, exclude)
+    candidates = cat.products
     if not any(p.dietary_class == "meat" for p in candidates):
         raise RuntimeError("No meat-track products available for the selected filters.")
     if sum(p.dietary_class in ("vegan", "vegetarian") for p in candidates) < 2:
         raise RuntimeError("Not enough vegetarian products available for the selected filters.")
     if USE_FAKE_LLM:
         return fake_plan_week(candidates)
-    return _planner()(format_catalogue(candidates))
+    return _planner()(cat.text)
 
 
 def _err_detail(e: Exception) -> str:
@@ -115,7 +152,8 @@ def plan(exclude: list[str] = Query(default=[])):
         
     summary = summarize_plan(weekly, store)
     log.info("plan generated and validated")
-    return PlanResponse(valid=True, checks=checks, plan=weekly, summary=summary)
+    return PlanResponse(valid=True, checks=checks, plan=weekly, summary=summary,
+                        prompt=_prompt_view(_catalogue(store, exclude_set)))
 
 
 def _sse(event: str, data: dict) -> str:
@@ -158,6 +196,7 @@ async def plan_stream(exclude: list[str] = Query(default=[])):
             "checks": [c.model_dump() for c in checks],
             "plan": weekly.model_dump(),
             "summary": summary.model_dump(),
+            "prompt": _prompt_view(_catalogue(store, exclude_set)).model_dump(),
         })
 
     return StreamingResponse(gen(), media_type="text/event-stream")
