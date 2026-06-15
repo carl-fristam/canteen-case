@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Canteen Menu Planner</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 820px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      color: #222;
+    }
+
+    button {
+      padding: .6rem 1.1rem;
+      font-size: 1rem;
+      cursor: pointer;
+      border-radius: 6px;
+      border: 1px solid #888;
+    }
+
+    button:disabled {
+      opacity: .5;
+      cursor: default;
+    }
+
+    fieldset {
+      margin: 0 0 1rem;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+
+    fieldset label {
+      margin-right: 1rem;
+    }
+
+    .day {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 1rem;
+      margin: 1rem 0;
+    }
+
+    .day h2 {
+      margin: 0 0 .5rem;
+    }
+
+    .dish {
+      margin: .5rem 0;
+    }
+
+    .track {
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+
+    .ok {
+      color: #137333;
+    }
+
+    .bad {
+      color: #c5221f;
+    }
+
+    ul {
+      margin: .25rem 0 .75rem 1.25rem;
+    }
+
+    li.err {
+      color: #c5221f;
+    }
+
+    .check {
+      margin: .15rem 0;
+    }
+
+    #status {
+      margin: 1rem 0;
+      font-weight: 600;
+    }
+
+    #checks {
+      margin: .5rem 0 1rem;
+    }
+
+    .summary-box {
+      border: 2px solid #222;
+      padding: 1rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+      background: #f9f9f9;
+    }
+
+    .summary-box h2 {
+      margin-top: 0;
+      border-bottom: 1px solid #222;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    @media print {
+      body {
+        margin: 0;
+        padding: 1cm;
+        max-width: none;
+      }
+
+      #go,
+      fieldset,
+      #status,
+      #checks,
+      h1,
+      .no-print {
+        display: none !important;
+      }
+
+      .day,
+      .summary-box {
+        page-break-inside: avoid;
+        border: 1px solid #000;
+      }
+
+      .day h2 {
+        font-size: 1.2rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <h1 class="no-print">Canteen Weekly Menu Planner</h1>
+
+  <fieldset class="no-print">
+    <legend>Exclude allergens</legend>
+    <label><input type="checkbox" class="allergen" value="gluten"> Gluten</label>
+    <label><input type="checkbox" class="allergen" value="nuts"> Nuts</label>
+    <label><input type="checkbox" class="allergen" value="dairy"> Dairy</label>
+  </fieldset>
+
+  <button id="go">Generate week</button>
+  <button id="print" class="no-print" style="display:none" onclick="window.print()">Print for Chef</button>
+  <div id="status"></div>
+  <div id="checks"></div>
+  <div id="summary"></div>
+  <div id="week"></div>
+
+  <script>
+    const go = document.getElementById("go");
+    const printBtn = document.getElementById("print");
+    const statusEl = document.getElementById("status");
+    const checksEl = document.getElementById("checks");
+    const summaryEl = document.getElementById("summary");
+    const weekEl = document.getElementById("week");
+
+    go.addEventListener("click", () => {
+      go.disabled = true;
+      printBtn.style.display = "none";
+      statusEl.textContent = "Planning…";
+      checksEl.innerHTML = "";
+      summaryEl.innerHTML = "";
+      weekEl.innerHTML = "";
+
+      const params = new URLSearchParams();
+      document.querySelectorAll(".allergen:checked").forEach(c => params.append("exclude", c.value));
+
+      const es = new EventSource("/plan/stream?" + params.toString());
+
+      es.addEventListener("progress", e => {
+        const { elapsed } = JSON.parse(e.data);
+        statusEl.textContent = `Planning… ${elapsed}s`;
+      });
+
+      es.addEventListener("done", e => {
+        const data = JSON.parse(e.data);
+        statusEl.innerHTML = data.valid
+          ? `<span class="ok">Valid plan &check;</span>`
+          : `<span class="bad">Invalid plan</span>`;
+        checksEl.innerHTML = data.checks.map(renderCheck).join("");
+        summaryEl.innerHTML = renderSummary(data.summary);
+        weekEl.innerHTML = data.plan.days.map(renderDay).join("");
+        es.close();
+        go.disabled = false;
+        if (data.valid) printBtn.style.display = "inline-block";
+      });
+
+      es.addEventListener("failed", e => {
+        statusEl.innerHTML = `<span class="bad">Failed: ${JSON.parse(e.data).detail}</span>`;
+        es.close();
+        go.disabled = false;
+      });
+
+      es.onerror = () => {
+        if (es.readyState === EventSource.CLOSED) return;   // already handled
+        statusEl.innerHTML = `<span class="bad">Connection lost</span>`;
+        es.close();
+        go.disabled = false;
+      };
+    });
+
+    function renderCheck(c) {
+      const icon = c.passed ? `<span class="ok">&check;</span>` : `<span class="bad">&cross;</span>`;
+      const fails = c.details.length
+        ? "<ul>" + c.details.map(d => `<li class="err">${d}</li>`).join("") + "</ul>"
+        : "";
+      return `<div class="check">${icon} ${c.name}${fails}</div>`;
+    }
+
+    function renderSummary(s) {
+      if (!s) return "";
+      const fmt = n => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return `
+        <div class="summary-box">
+          <h2>Weekly summary</h2>
+          <div class="summary-grid">
+            <div>
+              <h3>Meat Track</h3>
+              <p>Cost: <strong>€${fmt(s.meat_track.total_cost_eur)}</strong></p>
+              <p>Calories: <strong>${fmt(s.meat_track.total_calories_kcal)} kcal</strong></p>
+              <p>Allergens: ${s.meat_track.allergens.join(", ") || "None"}</p>
+            </div>
+            <div>
+              <h3>Vegetarian Track</h3>
+              <p>Cost: <strong>€${fmt(s.vegetarian_track.total_cost_eur)}</strong></p>
+              <p>Calories: <strong>${fmt(s.vegetarian_track.total_calories_kcal)} kcal</strong></p>
+              <p>Allergens: ${s.vegetarian_track.allergens.join(", ") || "None"}</p>
+            </div>
+          </div>
+          <div style="margin-top:1rem; border-top:1px solid #ccc; padding-top:0.5rem">
+            <strong>Grand Total Weekly Cost: €${fmt(s.grand_total_cost_eur)}</strong>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderDay(day) {
+      return `<div class="day"><h2>${day.day}</h2>${renderDish(day.meat_dish)}${renderDish(day.vegetarian_dish)}</div>`;
+    }
+    function renderDish(dish) {
+      const items = dish.ingredients
+        .map(i => `<li>${i.quantity_g.toFixed(0)} g — ${i.product_name} (#${i.product_id})</li>`)
+        .join("");
+      return `<div class="dish"><span class="track">${dish.track}</span>: ${dish.name}<ul>${items}</ul></div>`;
+    }
+  </script>
+</body>
+
+</html>
