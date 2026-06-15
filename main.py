@@ -16,9 +16,9 @@ from config import USE_FAKE_LLM, PROVIDER
 from data.product_store import ProductStore
 from llm.prompt import SYSTEM, format_catalogue
 from llm.fake_planner import fake_plan_week
-from validate import validate_plan
-from summarize import summarize_plan
-from models import WeeklyPlan, Check, WeeklySummary, Product
+from services.validate import validate_plan
+from services.summarize import summarize_plan
+from schemas import WeeklyPlan, Check, WeeklySummary, Product
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("canteen")

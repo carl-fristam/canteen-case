@@ -5,7 +5,7 @@ the prompt catalogue, while `get()` just keeps the full table around for validat
 import duckdb
 
 from config import DB_PATH
-from models import Product
+from schemas import Product
 
 class ProductStore:
     def __init__(self, db_path: str = DB_PATH):

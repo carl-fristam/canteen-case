@@ -1,5 +1,5 @@
 """Catalogue formatting + the shared system prompt for the planner."""
-from models import Product
+from schemas import Product
 
 SYSTEM = (
     """

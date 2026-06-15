@@ -1,5 +1,5 @@
 """A no-cost stand-in for plan_week — builds a valid plan from real products."""
-from models import WeeklyPlan, DayPlan, Dish, DishIngredient, Track, Product, Weekday
+from schemas import WeeklyPlan, DayPlan, Dish, DishIngredient, Track, Product, Weekday
 
 
 def fake_plan_week(products: list[Product]) -> WeeklyPlan:

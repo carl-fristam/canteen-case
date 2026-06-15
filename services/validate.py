@@ -2,7 +2,7 @@
 
 Returns one named Check per rule so the UI can show exactly what was verified.
 """
-from models import Track, WeeklyPlan, Check
+from schemas import Track, WeeklyPlan, Check
 from data.product_store import ProductStore
 
 

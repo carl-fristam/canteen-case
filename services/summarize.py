@@ -1,4 +1,4 @@
-from models import WeeklyPlan, WeeklySummary, TrackSummary, Track
+from schemas import WeeklyPlan, WeeklySummary, TrackSummary, Track
 from data.product_store import ProductStore
 
 def summarize_plan(plan: WeeklyPlan, store: ProductStore) -> WeeklySummary:

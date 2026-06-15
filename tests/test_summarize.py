@@ -1,5 +1,5 @@
 from data.product_store import ProductStore
-from summarize import summarize_plan
+from services.summarize import summarize_plan
 from llm.fake_planner import fake_plan_week
 
 def test_summarize_calculation():

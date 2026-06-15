@@ -2,7 +2,7 @@
 from google import genai
 
 from config import GEMINI_MODEL
-from models import WeeklyPlan
+from schemas import WeeklyPlan
 from llm.prompt import SYSTEM
 
 client = genai.Client()   # reads GEMINI_API_KEY / GOOGLE_API_KEY from env

@@ -1,6 +1,6 @@
-from models import WeeklyPlan, DayPlan, Dish, DishIngredient, Track, Weekday, Product
+from schemas import WeeklyPlan, DayPlan, Dish, DishIngredient, Track, Weekday, Product
 from data.product_store import ProductStore
-from validate import validate_plan
+from services.validate import validate_plan
 
 def test_validator_detects_hallucination():
     store = ProductStore()

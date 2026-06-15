@@ -1,7 +1,7 @@
 import anthropic
 
 from config import MODEL, MAX_TOKENS, EFFORT
-from models import WeeklyPlan
+from schemas import WeeklyPlan
 from llm.prompt import SYSTEM
 
 client = anthropic.Anthropic()
