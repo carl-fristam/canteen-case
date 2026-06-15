@@ -15,3 +15,6 @@ GEMINI_MODEL = "gemini-2.5-flash"
 
 # Set to None for models that don't support effort (e.g. Haiku 4.5).
 EFFORT = "high"          # low | medium | high | max | None
+
+# Extended-thinking budget (tokens) used on the streaming path; must be < MAX_TOKENS.
+THINKING_BUDGET = 6000

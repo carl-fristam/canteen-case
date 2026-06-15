@@ -82,6 +82,47 @@
       font-weight: 600;
     }
 
+    .spinner {
+      display: inline-block;
+      width: .9em;
+      height: .9em;
+      margin-right: .5em;
+      border: 2px solid #ccc;
+      border-top-color: #222;
+      border-radius: 50%;
+      vertical-align: -.1em;
+      animation: spin .7s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .thinking-box {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      margin: 1rem 0;
+      background: #fafafa;
+    }
+
+    .thinking-label {
+      padding: .4rem .8rem;
+      font-weight: 600;
+      font-size: .85rem;
+      color: #555;
+      border-bottom: 1px solid #eee;
+    }
+
+    .thinking-box pre {
+      margin: 0;
+      padding: .6rem .8rem;
+      white-space: pre-wrap;
+      font-size: .8rem;
+      line-height: 1.4;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+
     #checks {
       margin: .5rem 0 1rem;
     }
@@ -171,6 +212,7 @@
   <button id="go">Generate week</button>
   <button id="print" class="no-print" style="display:none" onclick="window.print()">Print for Chef</button>
   <div id="status"></div>
+  <div id="thinking" class="no-print"></div>
   <div id="checks"></div>
   <div id="prompt" class="no-print"></div>
   <div id="summary"></div>
@@ -181,6 +223,7 @@
     const printBtn = document.getElementById("print");
     const statusEl = document.getElementById("status");
     const checksEl = document.getElementById("checks");
+    const thinkingEl = document.getElementById("thinking");
     const promptEl = document.getElementById("prompt");
     const summaryEl = document.getElementById("summary");
     const weekEl = document.getElementById("week");
@@ -188,8 +231,9 @@
     go.addEventListener("click", () => {
       go.disabled = true;
       printBtn.style.display = "none";
-      statusEl.textContent = "Planning…";
+      statusEl.innerHTML = `<span class="spinner"></span>Thinking…`;
       checksEl.innerHTML = "";
+      thinkingEl.innerHTML = "";
       promptEl.innerHTML = "";
       summaryEl.innerHTML = "";
       weekEl.innerHTML = "";
@@ -198,10 +242,13 @@
       document.querySelectorAll(".allergen:checked").forEach(c => params.append("exclude", c.value));
 
       const es = new EventSource("/plan/stream?" + params.toString());
+      let thinkingLog = "";
 
-      es.addEventListener("progress", e => {
-        const { elapsed } = JSON.parse(e.data);
-        statusEl.textContent = `Planning… ${elapsed}s`;
+      es.addEventListener("thinking", e => {
+        thinkingLog += JSON.parse(e.data).text;
+        thinkingEl.innerHTML = `<div class="thinking-box"><div class="thinking-label">Model reasoning</div><pre>${escapeHtml(thinkingLog)}</pre></div>`;
+        const pre = thinkingEl.querySelector("pre");
+        if (pre) pre.scrollTop = pre.scrollHeight;
       });
 
       es.addEventListener("done", e => {

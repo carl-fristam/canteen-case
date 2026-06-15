@@ -1,6 +1,6 @@
 # Canteen Menu Planner
 
-Generates a week of canteen mains (Mon–Fri, meat + vegetarian) from a product catalogue, grounded in real products and validated. FastAPI web UI.
+Generates a week of canteen mains (Mon–Fri, meat + vegetarian) from a product catalogue, grounded in real products and validated. Simple FastAPI web UI.
 
 ## Setup
 
@@ -27,13 +27,11 @@ USE_FAKE_LLM=1 uvicorn main:app --reload   # no API cost
 
 Open http://127.0.0.1:8000.
 
-## Test
-
-To run the automated test suite:
+## Tests
 
 ```bash
 pip install pytest httpx
 pytest
 ```
 
-This will run unit tests for validation and summarization logic, as well as integration tests for the API endpoints (using a fake LLM to avoid costs).
+This will run unit tests for validation and summarization logic, as well as integration tests for the API endpoints (fixed to use the fake LLM to avoid costs).

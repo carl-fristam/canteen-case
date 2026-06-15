@@ -1,16 +1,16 @@
-"""FastAPI app: serves the page, the /plan endpoint, and a streaming variant."""
+"""FastAPI app: serves the page plus the /plan and /plan/stream endpoints."""
 import asyncio
 import json
 import logging
-import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 import anthropic
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, StreamingResponse
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 from config import USE_FAKE_LLM, PROVIDER
 from data.product_store import ProductStore
@@ -18,7 +18,10 @@ from llm.prompt import SYSTEM, format_catalogue
 from llm.fake_planner import fake_plan_week
 from services.validate import validate_plan
 from services.summarize import summarize_plan
-from schemas import WeeklyPlan, Check, WeeklySummary, Product
+from schemas import WeeklyPlan, Product, PromptView, PlanResponse
+
+
+# --- Setup -----------------------------------------------------------------
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("canteen")
@@ -28,9 +31,9 @@ ALLERGENS = ("gluten", "nuts", "dairy")
 SAMPLE_ROWS = 20        # catalogue rows shown in the "what the AI saw" panel
 
 
-# lifespan hook to have the ProductStore be in memory throughout up-time
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Load the product catalogue into memory once, and keep it for the app's lifetime.
     app.state.store = ProductStore()
     log.info("loaded store: %d available products | fake_llm=%s",
              len(app.state.store.candidates()), USE_FAKE_LLM)
@@ -40,24 +43,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Canteen Menu Planner", lifespan=lifespan)
 
 
-class PromptView(BaseModel):
-    """The exact text the model is grounded on, surfaced to the UI for transparency."""
-    system: str
-    catalogue_count: int
-    catalogue_sample: str
-
-
-class PlanResponse(BaseModel):
-    valid: bool
-    checks: list[Check]
-    plan: WeeklyPlan
-    summary: WeeklySummary | None = None
-    prompt: PromptView
-
+# --- Catalogue (what the model is grounded on) -----------------------------
 
 @dataclass
 class _Catalogue:
-    """The rendered catalogue for one allergen-filter — reused by the LLM call and the prompt panel."""
+    """A rendered catalogue for one allergen-filter, reused by the LLM call and the prompt panel."""
     products: list[Product]
     text: str
     count: int
@@ -68,7 +58,7 @@ _CATALOGUE_CACHE: dict[frozenset[str], _Catalogue] = {}
 
 
 def _catalogue(store: ProductStore, exclude: frozenset[str]) -> _Catalogue:
-    """Build (and cache) the catalogue for an allergen-filter, so it's rendered once per filter, not per request."""
+    """Render the catalogue once per allergen-filter and cache it."""
     if exclude not in _CATALOGUE_CACHE:
         products = store.candidates(exclude)
         text = format_catalogue(products)
@@ -81,7 +71,10 @@ def _prompt_view(cat: _Catalogue) -> PromptView:
     return PromptView(system=SYSTEM, catalogue_count=cat.count, catalogue_sample=cat.sample)
 
 
+# --- Planning --------------------------------------------------------------
+
 def _norm_exclude(exclude: list[str]) -> frozenset[str]:
+    """Keep only recognised allergen names from the query string."""
     return frozenset(a for a in exclude if a in ALLERGENS)
 
 
@@ -94,34 +87,38 @@ def _planner():
     return plan_week
 
 
-def _make_plan(store: ProductStore, exclude: frozenset[str]) -> WeeklyPlan:
-    """Build a plan, failing informatively when the filters leave a track empty."""
-    cat = _catalogue(store, exclude)
-    candidates = cat.products
+def _make_plan(store: ProductStore, exclude: frozenset[str],
+               on_thought: Callable[[str], None] | None = None) -> WeeklyPlan:
+    """Build a plan, failing early when the filters leave a track empty.
+
+    on_thought, if given, receives the model's reasoning text as it streams.
+    """
+    candidates = _catalogue(store, exclude).products
     if not any(p.dietary_class == "meat" for p in candidates):
         raise RuntimeError("No meat-track products available for the selected filters.")
     if sum(p.dietary_class in ("vegan", "vegetarian") for p in candidates) < 2:
         raise RuntimeError("Not enough vegetarian products available for the selected filters.")
     if USE_FAKE_LLM:
         return fake_plan_week(candidates)
-    return _planner()(cat.text)
+    return _planner()(_catalogue(store, exclude).text, on_thought)
 
 
 def _err_detail(e: Exception) -> str:
+    """Turn an exception into a short, user-facing message."""
     if isinstance(e, anthropic.APIError):
         body = getattr(e, "body", None)
         if isinstance(body, dict) and isinstance(body.get("error"), dict):
-            msg = body["error"].get("message")
-            if msg:
+            if msg := body["error"].get("message"):
                 return f"LLM error: {msg}"
         return f"LLM error: {getattr(e, 'message', str(e))}"
     if isinstance(e, ValidationError):
         return "LLM returned a malformed plan"
-    msg = getattr(e, "message", None)       # e.g. google-genai APIError
-    if msg:
+    if msg := getattr(e, "message", None):      # e.g. google-genai APIError
         return f"LLM error: {msg}"
     return str(e)
 
+
+# --- Routes ----------------------------------------------------------------
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
@@ -144,12 +141,10 @@ def plan(exclude: list[str] = Query(default=[])):
         raise HTTPException(status_code=502, detail=_err_detail(e))
 
     checks = validate_plan(weekly, store, exclude_set)
-    valid = all(c.passed for c in checks)
-    if not valid:
-        # Join failing details into a single error message
+    if not all(c.passed for c in checks):
         fails = [d for c in checks if not c.passed for d in c.details]
         raise HTTPException(status_code=502, detail=f"Validation failed: {'; '.join(fails[:3])}...")
-        
+
     summary = summarize_plan(weekly, store)
     log.info("plan generated and validated")
     return PlanResponse(valid=True, checks=checks, plan=weekly, summary=summary,
@@ -157,6 +152,7 @@ def plan(exclude: list[str] = Query(default=[])):
 
 
 def _sse(event: str, data: dict) -> str:
+    """Format one Server-Sent Event."""
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
@@ -165,38 +161,51 @@ async def plan_stream(exclude: list[str] = Query(default=[])):
     store = app.state.store
     exclude_set = _norm_exclude(exclude)
     loop = asyncio.get_event_loop()
+    queue: asyncio.Queue = asyncio.Queue()
+
+    # The blocking planner runs in a worker thread; bridge its output back to the event loop.
+    def on_thought(text: str) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, ("thinking", text))
+
+    def work() -> None:
+        try:
+            weekly = _make_plan(store, exclude_set, on_thought)
+            loop.call_soon_threadsafe(queue.put_nowait, ("result", weekly))
+        except Exception as e:
+            loop.call_soon_threadsafe(queue.put_nowait, ("error", e))
 
     async def gen():
-        started = time.monotonic()
-        fut = loop.run_in_executor(None, _make_plan, store, exclude_set)
+        loop.run_in_executor(None, work)
+        while True:
+            kind, payload = await queue.get()
 
-        while not fut.done():
-            yield _sse("progress", {"elapsed": round(time.monotonic() - started, 1)})
-            await asyncio.sleep(1)
+            # Stream the model's reasoning as it arrives.
+            if kind == "thinking":
+                yield _sse("thinking", {"text": payload})
+                continue
 
-        try:
-            weekly = fut.result()
-        except Exception as e:
-            log.error("stream plan failed: %s", e)
-            yield _sse("failed", {"detail": _err_detail(e)})
+            if kind == "error":
+                log.error("stream plan failed: %s", payload)
+                yield _sse("failed", {"detail": _err_detail(payload)})
+                return
+
+            # kind == "result": validate, summarize, and send the finished plan.
+            weekly = payload
+            checks = validate_plan(weekly, store, exclude_set)
+            if not all(c.passed for c in checks):
+                fails = [d for c in checks if not c.passed for d in c.details]
+                yield _sse("failed", {"detail": f"Validation failed: {'; '.join(fails[:2])}"})
+                return
+
+            summary = summarize_plan(weekly, store)
+            log.info("plan generated and validated")
+            yield _sse("done", {
+                "valid": True,
+                "checks": [c.model_dump() for c in checks],
+                "plan": weekly.model_dump(),
+                "summary": summary.model_dump(),
+                "prompt": _prompt_view(_catalogue(store, exclude_set)).model_dump(),
+            })
             return
-
-        checks = validate_plan(weekly, store, exclude_set)
-        valid = all(c.passed for c in checks)
-        
-        if not valid:
-            fails = [d for c in checks if not c.passed for d in c.details]
-            yield _sse("failed", {"detail": f"Validation failed: {'; '.join(fails[:2])}"})
-            return
-
-        summary = summarize_plan(weekly, store)
-        log.info("plan generated and validated")
-        yield _sse("done", {
-            "valid": True,
-            "checks": [c.model_dump() for c in checks],
-            "plan": weekly.model_dump(),
-            "summary": summary.model_dump(),
-            "prompt": _prompt_view(_catalogue(store, exclude_set)).model_dump(),
-        })
 
     return StreamingResponse(gen(), media_type="text/event-stream")
