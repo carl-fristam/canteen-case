@@ -2,6 +2,8 @@
 
 Automated weekly menu planning using Gemini models made in Python.
 
+>Gemini API key is needed from google: [https://aistudio.google.com/app/api-keys](https://aistudio.google.com/app/api-keys)
+
 ## Setup & Run
 
 1.  **Python 3.12+**
