@@ -13,7 +13,7 @@ Automated weekly menu planning using Gemini models made in Python.
     ```
 3.  Set your `GEMINI_API_KEY` in a `.env` file.
 
-4.  Run with: `
+4.  Run with:
     ```bash
     uvicorn main:app --reload
     ```
