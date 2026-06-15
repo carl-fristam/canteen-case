@@ -82,6 +82,11 @@
       font-weight: 600;
     }
 
+    .took {
+      font-weight: 400;
+      color: #777;
+    }
+
     .spinner {
       display: inline-block;
       width: .9em;
@@ -241,6 +246,9 @@
       const params = new URLSearchParams();
       document.querySelectorAll(".allergen:checked").forEach(c => params.append("exclude", c.value));
 
+      const startedAt = Date.now();
+      const elapsed = () => ((Date.now() - startedAt) / 1000).toFixed(1);
+
       const es = new EventSource("/plan/stream?" + params.toString());
       let thinkingLog = "";
 
@@ -254,8 +262,8 @@
       es.addEventListener("done", e => {
         const data = JSON.parse(e.data);
         statusEl.innerHTML = data.valid
-          ? `<span class="ok">Valid plan &check;</span>`
-          : `<span class="bad">Invalid plan</span>`;
+          ? `<span class="ok">Valid plan &check;</span> <span class="took">in ${elapsed()}s</span>`
+          : `<span class="bad">Invalid plan</span> <span class="took">in ${elapsed()}s</span>`;
         checksEl.innerHTML = data.checks.map(renderCheck).join("");
         promptEl.innerHTML = renderPrompt(data.prompt);
         summaryEl.innerHTML = renderSummary(data.summary);
@@ -266,7 +274,7 @@
       });
 
       es.addEventListener("failed", e => {
-        statusEl.innerHTML = `<span class="bad">Failed: ${JSON.parse(e.data).detail}</span>`;
+        statusEl.innerHTML = `<span class="bad">Failed: ${JSON.parse(e.data).detail}</span> <span class="took">after ${elapsed()}s</span>`;
         es.close();
         go.disabled = false;
       });
@@ -302,7 +310,7 @@
           <h3>System prompt</h3>
           <pre>${escapeHtml(p.system)}</pre>
           <h3>Catalogue (${p.catalogue_count} products, showing first ${shown})</h3>
-          <pre>${escapeHtml(p.catalogue_sample)}</pre>
+          <pre>${escapeHtml(p.catalogue_preview)}</pre>
           ${moreNote}
         </details>
       `;

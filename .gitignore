@@ -4,3 +4,4 @@ __pycache__/
 .env
 case_misc/
 .claude/
+interview-notes.md

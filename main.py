@@ -3,7 +3,6 @@ import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
@@ -21,14 +20,14 @@ from services.summarize import summarize_plan
 from schemas import WeeklyPlan, Product, PromptView, PlanResponse
 
 
-# --- Setup -----------------------------------------------------------------
+# Setup
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("canteen")
 
 INDEX = Path(__file__).parent / "frontend" / "index.html"
 ALLERGENS = ("gluten", "nuts", "dairy")
-SAMPLE_ROWS = 20        # catalogue rows shown in the "what the AI saw" panel
+PREVIEW_ROWS = 20        # catalogue rows shown in the UI's "what the AI saw" panel
 
 
 @asynccontextmanager
@@ -43,35 +42,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Canteen Menu Planner", lifespan=lifespan)
 
 
-# --- Catalogue (what the model is grounded on) -----------------------------
-
-@dataclass
-class _Catalogue:
-    """A rendered catalogue for one allergen-filter, reused by the LLM call and the prompt panel."""
-    products: list[Product]
-    text: str
-    count: int
-    sample: str
-
-
-_CATALOGUE_CACHE: dict[frozenset[str], _Catalogue] = {}
-
-
-def _catalogue(store: ProductStore, exclude: frozenset[str]) -> _Catalogue:
-    """Render the catalogue once per allergen-filter and cache it."""
-    if exclude not in _CATALOGUE_CACHE:
-        products = store.candidates(exclude)
-        text = format_catalogue(products)
-        sample = "\n".join(text.split("\n")[:1 + SAMPLE_ROWS])   # header + N rows
-        _CATALOGUE_CACHE[exclude] = _Catalogue(products, text, len(products), sample)
-    return _CATALOGUE_CACHE[exclude]
-
-
-def _prompt_view(cat: _Catalogue) -> PromptView:
-    return PromptView(system=SYSTEM, catalogue_count=cat.count, catalogue_sample=cat.sample)
-
-
-# --- Planning --------------------------------------------------------------
+# Planning
 
 def _norm_exclude(exclude: list[str]) -> frozenset[str]:
     """Keep only recognised allergen names from the query string."""
@@ -87,20 +58,25 @@ def _planner():
     return plan_week
 
 
-def _make_plan(store: ProductStore, exclude: frozenset[str],
+def _make_plan(products: list[Product], catalogue: str,
                on_thought: Callable[[str], None] | None = None) -> WeeklyPlan:
-    """Build a plan, failing early when the filters leave a track empty.
+    """Build a plan from the rendered candidates, failing early when a track is empty.
 
     on_thought, if given, receives the model's reasoning text as it streams.
     """
-    candidates = _catalogue(store, exclude).products
-    if not any(p.dietary_class == "meat" for p in candidates):
+    if not any(p.dietary_class == "meat" for p in products):
         raise RuntimeError("No meat-track products available for the selected filters.")
-    if sum(p.dietary_class in ("vegan", "vegetarian") for p in candidates) < 2:
+    if sum(p.dietary_class in ("vegan", "vegetarian") for p in products) < 2:
         raise RuntimeError("Not enough vegetarian products available for the selected filters.")
     if USE_FAKE_LLM:
-        return fake_plan_week(candidates)
-    return _planner()(_catalogue(store, exclude).text, on_thought)
+        return fake_plan_week(products)
+    return _planner()(catalogue, on_thought)
+
+
+def _prompt_view(catalogue: str, count: int) -> PromptView:
+    """The grounding text shown in the UI's 'what the AI saw' panel."""
+    preview = "\n".join(catalogue.split("\n")[:1 + PREVIEW_ROWS])   # header + N rows
+    return PromptView(system=SYSTEM, catalogue_count=count, catalogue_preview=preview)
 
 
 def _err_detail(e: Exception) -> str:
@@ -118,7 +94,7 @@ def _err_detail(e: Exception) -> str:
     return str(e)
 
 
-# --- Routes ----------------------------------------------------------------
+# Routes
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
@@ -134,8 +110,10 @@ def health():
 def plan(exclude: list[str] = Query(default=[])):
     store = app.state.store
     exclude_set = _norm_exclude(exclude)
+    products = store.candidates(exclude_set)
+    catalogue = format_catalogue(products)
     try:
-        weekly = _make_plan(store, exclude_set)
+        weekly = _make_plan(products, catalogue)
     except Exception as e:
         log.error("plan failed: %s", e)
         raise HTTPException(status_code=502, detail=_err_detail(e))
@@ -148,7 +126,7 @@ def plan(exclude: list[str] = Query(default=[])):
     summary = summarize_plan(weekly, store)
     log.info("plan generated and validated")
     return PlanResponse(valid=True, checks=checks, plan=weekly, summary=summary,
-                        prompt=_prompt_view(_catalogue(store, exclude_set)))
+                        prompt=_prompt_view(catalogue, len(products)))
 
 
 def _sse(event: str, data: dict) -> str:
@@ -160,6 +138,8 @@ def _sse(event: str, data: dict) -> str:
 async def plan_stream(exclude: list[str] = Query(default=[])):
     store = app.state.store
     exclude_set = _norm_exclude(exclude)
+    products = store.candidates(exclude_set)
+    catalogue = format_catalogue(products)
     loop = asyncio.get_event_loop()
     queue: asyncio.Queue = asyncio.Queue()
 
@@ -169,7 +149,7 @@ async def plan_stream(exclude: list[str] = Query(default=[])):
 
     def work() -> None:
         try:
-            weekly = _make_plan(store, exclude_set, on_thought)
+            weekly = _make_plan(products, catalogue, on_thought)
             loop.call_soon_threadsafe(queue.put_nowait, ("result", weekly))
         except Exception as e:
             loop.call_soon_threadsafe(queue.put_nowait, ("error", e))
@@ -204,7 +184,7 @@ async def plan_stream(exclude: list[str] = Query(default=[])):
                 "checks": [c.model_dump() for c in checks],
                 "plan": weekly.model_dump(),
                 "summary": summary.model_dump(),
-                "prompt": _prompt_view(_catalogue(store, exclude_set)).model_dump(),
+                "prompt": _prompt_view(catalogue, len(products)).model_dump(),
             })
             return
 

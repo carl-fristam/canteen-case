@@ -2,6 +2,8 @@
 
 Generates a week of canteen mains (Mon–Fri, meat + vegetarian) from a product catalogue, grounded in real products and validated. Simple FastAPI web UI.
 
+>Made just for Google and Anthropic models
+
 ## Setup
 
 ```bash

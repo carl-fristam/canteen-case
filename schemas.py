@@ -93,7 +93,7 @@ class PromptView(BaseModel):
     """The exact text the model is grounded on, surfaced to the UI for transparency."""
     system: str
     catalogue_count: int
-    catalogue_sample: str
+    catalogue_preview: str
 
 
 class PlanResponse(BaseModel):
