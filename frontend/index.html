@@ -470,6 +470,7 @@
         <summary>
           <span class="spinner"></span>
           <span class="live-step" id="liveStep">Thinking…</span>
+          <span class="took" id="liveTimer"></span>
         </summary>
         <pre id="reasoningFull"></pre>
       </details>
@@ -496,6 +497,7 @@
     const go = document.getElementById("go");
     const live = document.getElementById("live");
     const liveStep = document.getElementById("liveStep");
+    const liveTimer = document.getElementById("liveTimer");
     const statusEl = document.getElementById("status");
     const meta = document.getElementById("meta");
     const reasoningFull = document.getElementById("reasoningFull");
@@ -519,6 +521,9 @@
       const startedAt = Date.now();
       const elapsed = () => ((Date.now() - startedAt) / 1000).toFixed(1);
 
+      liveTimer.textContent = "0.0s";
+      const timerInterval = setInterval(() => { liveTimer.textContent = elapsed() + "s"; }, 100);
+
       const params = new URLSearchParams();
       document.querySelectorAll(".allergen:checked").forEach(c => params.append("exclude", c.value));
 
@@ -534,6 +539,7 @@
 
       es.addEventListener("done", e => {
         const data = JSON.parse(e.data);
+        clearInterval(timerInterval);
         live.querySelector(".spinner").hidden = true;
         liveStep.textContent = "Thinking complete";
 
@@ -549,9 +555,11 @@
 
         es.close();
         go.disabled = false;
+        fetch("/log/success", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
       });
 
       es.addEventListener("failed", e => {
+        clearInterval(timerInterval);
         live.hidden = true;
         statusEl.innerHTML =
           `<span class="bad">Failed: ${JSON.parse(e.data).detail}</span> <span class="took">after ${elapsed()}s</span>`;
@@ -561,6 +569,7 @@
 
       es.onerror = () => {
         if (es.readyState === EventSource.CLOSED) return;
+        clearInterval(timerInterval);
         live.hidden = true;
         statusEl.innerHTML = `<span class="bad">Connection lost</span>`;
         es.close();
@@ -593,11 +602,13 @@
               <div>
                 <h3>Meat track</h3>
                 <p class="summary-stat">Cost: <strong>€${fmt(s.meat_track.total_cost_eur)}</strong></p>
+                <p class="summary-stat">Calories: <strong>${Math.round(s.meat_track.total_calories_kcal)} kcal</strong></p>
                 <p class="summary-stat">Allergens: ${s.meat_track.allergens.join(", ") || "None"}</p>
               </div>
               <div>
                 <h3>Vegetarian track</h3>
                 <p class="summary-stat">Cost: <strong>€${fmt(s.vegetarian_track.total_cost_eur)}</strong></p>
+                <p class="summary-stat">Calories: <strong>${Math.round(s.vegetarian_track.total_calories_kcal)} kcal</strong></p>
                 <p class="summary-stat">Allergens: ${s.vegetarian_track.allergens.join(", ") || "None"}</p>
               </div>
             </div>

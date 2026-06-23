@@ -9,12 +9,20 @@ from llm.prompt import format_catalogue
 from services.validate import validate_plan
 from services.summarize import summarize_plan
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+log = logging.getLogger("canteen")
+
 app = FastAPI(title="HEYRA Planner")
 store = ProductStore()
 
 @app.get("/", response_class=HTMLResponse)
 def index():
     return Path("frontend/index.html").read_text()
+
+@app.post("/log/success")
+def log_success(data: dict):
+    log.info("Plan successfully created: €%.2f total cost", data.get("summary", {}).get("grand_total_cost_eur", 0))
+    return {"status": "logged"}
 
 @app.get("/plan")
 async def generate_plan(exclude: list[str] = Query(default=[])):
