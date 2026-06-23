@@ -7,13 +7,18 @@ Automated weekly menu planning using Gemini models made in Python.
 ## Setup & Run
 
 1.  **Python 3.12+**
-2.  Install dependencies:
+2.  Create and activate a virtual environment:
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate
+    ```
+3.  Install dependencies:
     ```bash
     pip install -r requirements.txt
     ```
-3.  Set your `GEMINI_API_KEY` in a `.env` file.
+4.  Set your `GEMINI_API_KEY` in a `.env` file.
 
-4.  Run with:
+5.  Run with:
     ```bash
     uvicorn main:app --reload
     ```
